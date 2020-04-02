@@ -23,7 +23,7 @@ namespace ByteBank.Forum
         public void Configuration(IAppBuilder builder)
         {
             builder.CreatePerOwinContext<DbContext>(() =>
-                new IdentityDbContext<UsuarioAplicacao>("Server=LAPTOP-QCIGTS8O;Database=EstudoIdentity;User Id=sa;Password=@Leandro123;"));
+                new IdentityDbContext<UsuarioAplicacao>(ConfigurationManager.AppSettings["DefaultConnection"]));
 
             builder.CreatePerOwinContext<IUserStore<UsuarioAplicacao>>(
                 (opcoes, contextoOwin) =>
@@ -31,6 +31,18 @@ namespace ByteBank.Forum
                     var dbContext = contextoOwin.Get<DbContext>();
                     return new UserStore<UsuarioAplicacao>(dbContext);
                 });
+
+            builder.CreatePerOwinContext<RoleStore<IdentityRole>>((opcoes, contextOwin) =>
+            {
+                var dbContext = contextOwin.Get<DbContext>();
+                return new RoleStore<IdentityRole>(dbContext);
+            });
+            
+            builder.CreatePerOwinContext<RoleManager<IdentityRole>>((opcoes, contextOwin) =>
+            {
+                var roleStore = contextOwin.Get<RoleStore<IdentityRole>>();
+                return new RoleManager<IdentityRole>(roleStore);
+            });
 
             builder.CreatePerOwinContext<UserManager<UsuarioAplicacao>>(
                 (opcoes, contextoOwin) =>
@@ -79,19 +91,19 @@ namespace ByteBank.Forum
 
             builder.UseCookieAuthentication(new CookieAuthenticationOptions
             {
-                 AuthenticationType = DefaultAuthenticationTypes.ApplicationCookie
+                AuthenticationType = DefaultAuthenticationTypes.ApplicationCookie
             });
 
             builder.UseExternalSignInCookie(DefaultAuthenticationTypes.ExternalCookie);
 
             builder.UseGoogleAuthentication(new GoogleOAuth2AuthenticationOptions
             {
-                 ClientId = ConfigurationManager.AppSettings["google:client_id"],
-                 ClientSecret = ConfigurationManager.AppSettings["google:client_secret"],
-                 Caption = "Google"
+                ClientId = ConfigurationManager.AppSettings["google:client_id"],
+                ClientSecret = ConfigurationManager.AppSettings["google:client_secret"],
+                Caption = "Google"
             });
 
-            using (var dbContext = new IdentityDbContext<UsuarioAplicacao>("DefaultConnection"))
+            using (var dbContext = new IdentityDbContext<UsuarioAplicacao>(ConfigurationManager.AppSettings["DefaultConnection"]))
             {
                 CriarRoles(dbContext);
                 CriarAdministrador(dbContext);

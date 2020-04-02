@@ -240,10 +240,13 @@ namespace ByteBank.Forum.Controllers
         {
             var loginInfo = await SignInManager.AuthenticationManager.GetExternalLoginInfoAsync();
 
-            var signInResultado = await SignInManager.ExternalSignInAsync(loginInfo, true);
+            if (loginInfo != null)
+            {
+                var signInResultado = await SignInManager.ExternalSignInAsync(loginInfo, true);
 
-            if (signInResultado == SignInStatus.Success)
-                return RedirectToAction("Index", "Home");
+                if (signInResultado == SignInStatus.Success)
+                    return RedirectToAction("Index", "Home");
+            }            
 
             return View("Error");
         }
