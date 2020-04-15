@@ -1,0 +1,15 @@
+﻿@model ByteBank.Forum.ViewModels.VerificacaoDosFatoresViewModel
+@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<h2>Verificação de SMS</h2>
+
+@Html.ValidationSummary()
+
+@using (Html.BeginForm())
+{
+    @Html.ValidationSummary()
+    @Html.EditorForModel()
+    <input type="submit" value="Enviar" class="btn btn-default" />
+}

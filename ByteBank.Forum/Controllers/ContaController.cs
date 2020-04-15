@@ -21,7 +21,7 @@ namespace ByteBank.Forum.Controllers
         {
             get
             {
-                if(_userManager == null)
+                if (_userManager == null)
                 {
                     var contextOwin = HttpContext.GetOwinContext();
                     _userManager = contextOwin.GetUserManager<UserManager<UsuarioAplicacao>>();
@@ -69,7 +69,7 @@ namespace ByteBank.Forum.Controllers
         [HttpPost]
         public async Task<ActionResult> Registrar(ContaRegistrarViewModel modelo)
         {
-            if(ModelState.IsValid)
+            if (ModelState.IsValid)
             {
                 var novoUsuario = new UsuarioAplicacao();
 
@@ -114,7 +114,7 @@ namespace ByteBank.Forum.Controllers
 
         public async Task<ActionResult> RegistrarPorAutenticacaoExternaCallback()
         {
-            var loginInfo = 
+            var loginInfo =
                 await SignInManager.AuthenticationManager.GetExternalLoginInfoAsync();
 
             var usuarioExistente = await UserManager.FindByEmailAsync(loginInfo.Email);
@@ -171,7 +171,7 @@ namespace ByteBank.Forum.Controllers
             else
                 return View("Error");
         }
-        
+
         public async Task<ActionResult> Login()
         {
             return View();
@@ -205,8 +205,10 @@ namespace ByteBank.Forum.Controllers
                         }
 
                         return RedirectToAction("Index", "Home");
+                    case SignInStatus.RequiresVerification:
+                        return RedirectToAction("VerificacaoDosFatores");
                     case SignInStatus.LockedOut:
-                        var senhaCorreta = 
+                        var senhaCorreta =
                             await UserManager.CheckPasswordAsync(
                                 usuario,
                                 modelo.Senha);
@@ -223,6 +225,26 @@ namespace ByteBank.Forum.Controllers
 
             // Algo de errado aconteceu
             return View(modelo);
+        }
+
+        public async Task<ActionResult> VerificacaoDosFatores()
+        {
+            var resultado = await SignInManager.SendTwoFactorCodeAsync("SMS");
+
+            if (resultado)
+                return View();
+
+            return View("Error");
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> VerificacaoDosFatores(VerificacaoDosFatoresViewModel pModel)
+        {
+            var resultado = await SignInManager.TwoFactorSignInAsync("SMS", pModel.Token, pModel.ContinuarLogado, pModel.LembrarDesteComputador);
+            if (resultado == SignInStatus.Success)
+                return RedirectToAction("Index", "Home");
+
+            return View("Error");
         }
 
         [HttpPost]
@@ -246,7 +268,7 @@ namespace ByteBank.Forum.Controllers
 
                 if (signInResultado == SignInStatus.Success)
                     return RedirectToAction("Index", "Home");
-            }            
+            }
 
             return View("Error");
         }
@@ -310,7 +332,7 @@ namespace ByteBank.Forum.Controllers
                 // Verifica o Token recebido
                 // Verifica o ID do usuário
                 // Mudar a senha
-                var resultadoAlteracao = 
+                var resultadoAlteracao =
                     await UserManager.ResetPasswordAsync(
                         modelo.UsuarioId,
                         modelo.Token,
@@ -333,16 +355,97 @@ namespace ByteBank.Forum.Controllers
             return RedirectToAction("Index", "Home");
         }
 
+        [HttpPost]
+        public ActionResult EsquecerNavegador()
+        {
+            AuthenticationManager.SignOut(DefaultAuthenticationTypes.TwoFactorRememberBrowserCookie);
+            return RedirectToAction("MinhaConta");
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> DeslogarDeTodosOsLocais()
+        {
+            var usuarioId = HttpContext.User.Identity.GetUserId();
+            await UserManager.UpdateSecurityStampAsync(usuarioId);
+
+            return RedirectToAction("Index", "Home");
+        }
+
         private ActionResult SenhaOuUsuarioInvalidos()
         {
             ModelState.AddModelError("", "Credenciais inválidas!");
             return View("Login");
         }
 
+        public async Task<ActionResult> MinhaConta()
+        {
+            var model = new ContaMinhaContaViewModel();
+            var usuarioId = HttpContext.User.Identity.GetUserId();
+            var usuario = await UserManager.FindByIdAsync(usuarioId);
+            model.NomeCompleto = usuario.NomeCompleto;
+            model.NumeroDeCelular = usuario.PhoneNumber;
+            model.HabilitarAutenticacaoDeDoisFatores = usuario.TwoFactorEnabled;
+            model.NumeroDeCelularConfirmado = usuario.PhoneNumberConfirmed;
+            return View(model);
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> MinhaConta(ContaMinhaContaViewModel pModel)
+        {
+            if (ModelState.IsValid)
+            {
+                var usuarioId = HttpContext.User.Identity.GetUserId();
+                var usuario = await UserManager.FindByIdAsync(usuarioId);
+
+                usuario.NomeCompleto = pModel.NomeCompleto;
+                usuario.PhoneNumber = pModel.NumeroDeCelular;
+
+                if (!usuario.PhoneNumberConfirmed)
+                    await EnviarSmsDeConfirmacaoAsync(usuario);
+                else
+                    usuario.TwoFactorEnabled = pModel.HabilitarAutenticacaoDeDoisFatores;
+
+                var resultadoUpdate = await UserManager.UpdateAsync(usuario);
+
+                if (resultadoUpdate.Succeeded)
+                    return RedirectToAction("Index", "Home");
+
+            }
+            return View();
+        }
+
         private void AdicionaErros(IdentityResult resultado)
         {
             foreach (var erro in resultado.Errors)
                 ModelState.AddModelError("", erro);
+        }
+
+        private async Task EnviarSmsDeConfirmacaoAsync(UsuarioAplicacao usuario)
+        {
+            var tokenConfirmacao = await UserManager.GenerateChangePhoneNumberTokenAsync(usuario.Id, usuario.PhoneNumber);
+
+            await UserManager.SendSmsAsync(usuario.Id, $"Token de confirmação: {tokenConfirmacao}");
+        }
+
+        public ActionResult VerificacaoCodigoCelular()
+        {
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<ActionResult> VerificacaoCodigoCelular(string token)
+        {
+            var usuarioId = HttpContext.User.Identity.GetUserId();
+            var usuario = await UserManager.FindByIdAsync(usuarioId);
+
+            var resultado = await UserManager.ChangePhoneNumberAsync(usuarioId, usuario.PhoneNumber, token);
+
+            if (resultado.Succeeded)
+                return RedirectToAction("Index", "Home");
+
+            AdicionaErros(resultado);
+
+            return View();
         }
     }
 }

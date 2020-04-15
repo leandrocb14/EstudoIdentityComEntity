@@ -37,7 +37,7 @@ namespace ByteBank.Forum
                 var dbContext = contextOwin.Get<DbContext>();
                 return new RoleStore<IdentityRole>(dbContext);
             });
-            
+
             builder.CreatePerOwinContext<RoleManager<IdentityRole>>((opcoes, contextOwin) =>
             {
                 var roleStore = contextOwin.Get<RoleStore<IdentityRole>>();
@@ -64,6 +64,11 @@ namespace ByteBank.Forum
                     };
 
                     userManager.EmailService = new EmailServico();
+                    userManager.SmsService = new SmsServico();
+                    userManager.RegisterTwoFactorProvider("SMS", new PhoneNumberTokenProvider<UsuarioAplicacao>()
+                    {
+                        MessageFormat = "Código de autenticação {0}"
+                    });
 
                     var dataProtectionProvider = opcoes.DataProtectionProvider;
                     var dataProtectionProviderCreated = dataProtectionProvider.Create("ByteBank.Forum");
@@ -91,10 +96,18 @@ namespace ByteBank.Forum
 
             builder.UseCookieAuthentication(new CookieAuthenticationOptions
             {
-                AuthenticationType = DefaultAuthenticationTypes.ApplicationCookie
+                AuthenticationType = DefaultAuthenticationTypes.ApplicationCookie,
+                Provider = new CookieAuthenticationProvider()
+                {
+                    OnValidateIdentity = SecurityStampValidator.OnValidateIdentity<UserManager<UsuarioAplicacao>, UsuarioAplicacao>(TimeSpan.FromSeconds(0), (manager, usuario) => manager.CreateIdentityAsync(usuario, DefaultAuthenticationTypes.ApplicationCookie))
+                }
             });
 
             builder.UseExternalSignInCookie(DefaultAuthenticationTypes.ExternalCookie);
+
+            builder.UseTwoFactorSignInCookie(DefaultAuthenticationTypes.TwoFactorCookie, TimeSpan.FromMinutes(5));
+
+            builder.UseTwoFactorRememberBrowserCookie(DefaultAuthenticationTypes.TwoFactorRememberBrowserCookie);
 
             builder.UseGoogleAuthentication(new GoogleOAuth2AuthenticationOptions
             {
