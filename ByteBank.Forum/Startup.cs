@@ -6,6 +6,7 @@ using Microsoft.AspNet.Identity.Owin;
 using Microsoft.Owin;
 using Microsoft.Owin.Security.Cookies;
 using Microsoft.Owin.Security.Google;
+using Microsoft.Owin.Security.OAuth;
 using Owin;
 using System;
 using System.Collections.Generic;
@@ -13,6 +14,7 @@ using System.Configuration;
 using System.Data.Entity;
 using System.Linq;
 using System.Web;
+using System.Web.WebSockets;
 
 [assembly: OwinStartup(typeof(ByteBank.Forum.Startup))]
 
@@ -115,6 +117,19 @@ namespace ByteBank.Forum
                 ClientSecret = ConfigurationManager.AppSettings["google:client_secret"],
                 Caption = "Google"
             });
+
+            OAuthAuthorizationServerOptions OAuthServerOptions = new OAuthAuthorizationServerOptions()
+            {
+                AllowInsecureHttp = true,
+                TokenEndpointPath = new PathString("/token"),
+                AccessTokenExpireTimeSpan = TimeSpan.FromMinutes(20),
+                Provider = new SimpleAuthorizationServerProvider(),
+                RefreshTokenProvider = new SimpleRefreshTokenProvider()
+            };
+
+            builder.UseOAuthAuthorizationServer(OAuthServerOptions);
+            builder.UseOAuthBearerAuthentication(new OAuthBearerAuthenticationOptions());
+            builder.UseCors(Microsoft.Owin.Cors.CorsOptions.AllowAll);
 
             using (var dbContext = new IdentityDbContext<UsuarioAplicacao>(ConfigurationManager.AppSettings["DefaultConnection"]))
             {
